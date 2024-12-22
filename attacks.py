@@ -102,6 +102,7 @@ def run_rmia(
     )
     mean_out_x = np.mean(out_signals, axis=1)
     mean_x = (1 + offline_a) / 2 * mean_out_x + (1 - offline_a) / 2
+    assert(np.all(mean_x != 0))
     prob_ratio_x = target_signals.ravel() / mean_x
 
     return prob_ratio_x

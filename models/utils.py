@@ -209,6 +209,55 @@ def split_dataset_for_training(dataset_size, num_model_pairs):
     return data_splits, master_keep
 
 
+def split_dataset_for_training_poisson(dataset_size, num_model_pairs):
+    """
+    Split dataset into training and test partitions for model pairs.
+
+    Args:
+        dataset_size (int): Total number of samples in the dataset.
+        num_model_pairs (int): Number of model pairs to be trained, with each pair trained on different halves of the dataset.
+
+    Returns:
+        data_split (list): List of dictionaries containing training and test split indices for each model.
+        master_keep (np.array): D boolean array indicating the membership of samples in each model's training set.
+    """
+    data_splits = []
+    indices = np.arange(dataset_size)
+    split_index = len(indices) // 2
+    master_keep = np.full((2 * num_model_pairs, dataset_size), True, dtype=bool)
+
+    for i in range(num_model_pairs):
+        # only the target model is sampled via poisson sampling
+        if i == 0:
+            keep = np.random.choice(2, dataset_size, p=[0.5, 0.5]).astype(bool)
+            master_keep[i * 2, :] = keep
+            master_keep[i * 2 + 1, :] = keep
+            train_indices = np.where(keep)[0]
+            test_indices = np.where(~keep)[0]
+        else:
+            # rest of the models are sampled to ensure there are equal number of in/out models
+            np.random.shuffle(indices)
+            master_keep[i * 2, indices[split_index:]] = False
+            master_keep[i * 2 + 1, indices[:split_index]] = False
+            keep = master_keep[i * 2, :]
+            train_indices = np.where(keep)[0]
+            test_indices = np.where(~keep)[0]
+        data_splits.append(
+            {
+                "train": train_indices,
+                "test": test_indices,
+            }
+        )
+        data_splits.append(
+            {
+                "train": test_indices,
+                "test": train_indices,
+            }
+        )
+
+    return data_splits, master_keep
+
+
 def prepare_models(
     log_dir: str,
     dataset: torchvision.datasets,

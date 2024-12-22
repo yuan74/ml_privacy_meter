@@ -262,3 +262,57 @@ def sample_auditing_dataset(
     else:
         raise ValueError("Audit data size cannot be larger than the dataset.")
     return auditing_dataset, auditing_membership
+
+
+
+def sample_auditing_dataset_poisson(
+    configs, dataset: torch.utils.data.Dataset, logger, memberships: np.ndarray
+):
+    """
+    Ensure that the dataset in DP auditing is poisson sampled
+
+    Args:
+        configs (Dict[str, Any]): Configuration dictionary
+        dataset (Any): The full dataset from which the audit subset will be sampled.
+        logger (Any): Logger object used to log information during downsampling.
+        memberships (np.ndarray): A 2D boolean numpy array where each row corresponds to a model and
+                                  each column corresponds to whether the corresponding sample is a member (True)
+                                  or non-member (False).
+
+    Returns:
+        Tuple[torch.utils.data.Subset, np.ndarray]: A tuple containing:
+            - The downsampled dataset or the full dataset if downsampling is not applied.
+            - The corresponding membership labels for the samples in the downsampled dataset.
+
+    Raises:
+        ValueError: If the requested audit data size is larger than the full dataset or not an even number.
+        NotImplementedError: If the number of Audited models cannot be larger than one.
+    """
+    if configs["run"]["num_experiments"] > 1:
+        raise NotImplementedError("Currently only support one run DP auditing and thus the number of Audited models cannot be larger than one.")
+
+    audit_data_size = configs["audit"].get("data_size", len(dataset))
+    if audit_data_size < len(dataset):
+        
+        logger.info(
+            "Downsampling the dataset for auditing to %d samples. ",
+            audit_data_size,
+        )
+        # Sample audit_data_size samples to audit
+        all_idx = np.random.choice(
+            len(dataset), audit_data_size, replace=False
+        )
+
+        # Randomly sample members and non-members
+        auditing_dataset = Subset(
+            dataset, all_idx
+        )
+        auditing_membership = memberships[
+            :, all_idx
+        ].reshape((memberships.shape[0], audit_data_size))
+    elif audit_data_size == len(dataset):
+        auditing_dataset = dataset
+        auditing_membership = memberships
+    else:
+        raise ValueError("Audit data size cannot be larger than the dataset.")
+    return auditing_dataset, auditing_membership

@@ -7,9 +7,10 @@ import time
 import torch
 import yaml
 
-from audit import get_average_audit_results, audit_models, sample_auditing_dataset
+from audit import get_average_audit_results, audit_models, sample_auditing_dataset_poisson
+from audit_dp import get_all_dp_audit_results, get_dp_audit_results_for_k_pos_k_neg
 from get_signals import get_model_signals
-from models.utils import load_models, train_models, split_dataset_for_training
+from models.utils import load_models, train_models, split_dataset_for_training_poisson
 from util import (
     check_configs,
     setup_log,
@@ -81,20 +82,19 @@ def main():
     )
     if models_list is None:
         # Split dataset for training two models per pair
-        data_splits, memberships = split_dataset_for_training(
+        data_splits, memberships = split_dataset_for_training_poisson(
             len(dataset), num_model_pairs
         )
         models_list = train_models(
             log_dir, dataset, data_splits, memberships, configs, logger
-        )
+        ) 
     logger.info(
         "Model loading/training took %0.1f seconds", time.time() - baseline_time
     )
 
-    auditing_dataset, auditing_membership = sample_auditing_dataset(
+    auditing_dataset, auditing_membership = sample_auditing_dataset_poisson(
         configs, dataset, logger, memberships
     )
-
     # Generate signals (softmax outputs) for all models
     baseline_time = time.time()
     signals = get_model_signals(models_list, auditing_dataset, configs, logger)
@@ -112,6 +112,13 @@ def main():
         logger,
         configs,
     )
+    
+    # get_all_dp_audit_results(directories["report_dir"], mia_score_list, membership_list, logger)
+
+    
+    k_neg = 900
+    k_pos = 59700
+    get_dp_audit_results_for_k_pos_k_neg(directories["report_dir"], mia_score_list, membership_list, logger, k_pos, k_neg)
 
     if len(target_model_indices) > 1:
         logger.info(

@@ -14,7 +14,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer
 
-from dataset import TabularDataset, TextDataset, load_agnews
+from dataset import TabularDataset, TextDataset, load_agnews, load_canary_agnews
 from trainers.fast_train import get_batches, load_cifar10_data
 
 
@@ -76,6 +76,26 @@ def get_dataset(dataset_name: str, data_dir: str, logger: Any, **kwargs: Any) ->
             all_targets = np.concatenate([all_data.targets, test_data.targets], axis=0)
             all_data.data = all_features
             all_data.targets = all_targets
+            with open(f"{path}.pkl", "wb") as file:
+                pickle.dump(all_data, file)
+            logger.info(f"Save data to {path}.pkl")
+        elif dataset_name == "cifar10_canary":
+            transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+                ]
+            )
+            all_data = torchvision.datasets.CIFAR10(
+                root=path, train=True, download=True, transform=transform
+            )
+            test_data = torchvision.datasets.CIFAR10(
+                root=path, train=False, download=True, transform=transform
+            )
+            labels = np.random.randint(10, size = len(all_data) + len(test_data))
+            all_features = np.concatenate([all_data.data, test_data.data], axis=0)
+            all_data.data = all_features
+            all_data.targets = labels.tolist()
             with open(f"{path}.pkl", "wb") as file:
                 pickle.dump(all_data, file)
             logger.info(f"Save data to {path}.pkl")
@@ -208,6 +228,18 @@ def get_dataset(dataset_name: str, data_dir: str, logger: Any, **kwargs: Any) ->
                         tokenizer, clean_up_tokenization_spaces=True
                     ),
                 )
+            all_data = TextDataset(agnews, target_column="labels", text_column="text")
+            with open(f"{path}.pkl", "wb") as file:
+                pickle.dump(all_data, file)
+            logger.info(f"Save data to {path}.pkl")
+        elif dataset_name == "agnews_canary":
+            tokenizer = kwargs.get("tokenizer")
+            agnews = load_canary_agnews(
+                tokenize=True,
+                tokenizer=AutoTokenizer.from_pretrained(
+                    tokenizer, clean_up_tokenization_spaces=True
+                )
+            )
             all_data = TextDataset(agnews, target_column="labels", text_column="text")
             with open(f"{path}.pkl", "wb") as file:
                 pickle.dump(all_data, file)

@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Callable, Optional, Dict, Any
+import random
 
 from datasets import load_dataset, Dataset
 from transformers import PreTrainedTokenizer
@@ -17,6 +18,11 @@ def replace_backslashes(example: Dict[str, Any]) -> Dict[str, Any]:
         Dict[str, Any]: The modified example with backslashes replaced.
     """
     example["text"] = example["text"].replace("\\", " ")
+    return example
+
+
+def replace_with_random_string(example: Dict[str, Any]) -> Dict[str, Any]:
+    example['text'] = ''.join(random.sample(example["text"],len(example["text"])))
     return example
 
 
@@ -70,6 +76,64 @@ def load_agnews(
     if preprocessing_fn is not None:
         agnews = agnews.map(preprocessing_fn)
         print("Preprocessing function applied to the dataset.")
+
+    if tokenize:
+        if tokenizer is None:
+            raise ValueError("Tokenizer is not provided. Cannot tokenize the dataset.")
+
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            print(
+                "The tokenizer pad token is None. Setting it to the EOS token for padding. "
+                "If this is not desired, please set the pad token manually and "
+                "save the tokenizer to disk before loading again."
+            )
+
+        agnews = agnews.map(
+            partial(replace_label_with_input_ids, tokenizer=tokenizer),
+            batched=True,
+            remove_columns=["label"],
+        )
+
+    return agnews
+
+
+
+
+def load_canary_agnews(
+    split: str = "train",
+    preprocessing_fn: Optional[
+        Callable[[Dict[str, Any]], Dict[str, Any]]
+    ] = replace_backslashes,
+    tokenize: bool = False,
+    tokenizer: Optional[PreTrainedTokenizer] = None,
+    canary_fun: Optional[
+        Callable[[Dict[str, Any]], Dict[str, Any]]
+    ] = replace_with_random_string
+) -> Dataset:
+    """
+    Load the AG News dataset from Hugging Face datasets library.
+    If a preprocessing function is provided, apply it to the dataset.
+    If tokenize is True, tokenize the dataset using the provided tokenizer.
+    The input_ids will be used to replace the original "label" column.
+
+    Args:
+        split (str): The split of the dataset to load.
+        preprocessing_fn (Optional[Callable[[Dict[str, Any]], Dict[str, Any]]]): A function to preprocess the dataset.
+        tokenize (bool): Whether to tokenize the dataset.
+        tokenizer (Optional[PreTrainedTokenizer]): The tokenizer to use for tokenization.
+
+    Returns:
+        Dataset: The AG News dataset.
+    """
+    agnews = load_dataset("ag_news", split=split)
+    if preprocessing_fn is not None:
+        agnews = agnews.map(preprocessing_fn)
+        print("Preprocessing function applied to the dataset.")
+    
+    if canary_fun is not None:
+        agnews = agnews.map(preprocessing_fn)
+        print("Canary construction function applied to the dataset.")
 
     if tokenize:
         if tokenizer is None:
